@@ -44,18 +44,18 @@ def track_ext_iou(detections, sigma_l, sigma_h, sigma_ext_iou, t_min, weight_iou
                 best_match_iou = max(dets, key=lambda x: iou(track['bboxes'][-1], x['bbox']))
                 # template matching
                 template  = get_template(frame, track['bboxes'][-1])
-                tm_bbox, tm_conf = template_matching(frame, template, track['bboxes'][-1], factor=0.5, meth_idx=3) 
+                matched_template = template_matching(frame, template, track['bboxes'][-1], factor=0.5, meth_idx=3) 
                 # IOU of found template and best_match_iou necessary to make sure the results are the same!
-                
-                # combined threshold
-                if (weight_iou * iou(track['bboxes'][-1], best_match_iou['bbox'])) + ((1 - weight_iou) * tm_conf) >= sigma_ext_iou:
-                    track['bboxes'].append(best_match['bbox'])
-                    track['max_score'] = max(track['max_score'], best_match['score'])
+                if iou(best_match_iou['bbox'], matched_template['bbox']) >= 0.9:
+                    # combined threshold
+                    if (weight_iou * iou(track['bboxes'][-1], best_match_iou['bbox'])) + ((1 - weight_iou) * tm_conf) >= sigma_ext_iou:
+                        track['bboxes'].append(best_match_iou['bbox'])
+                        track['max_score'] = max(track['max_score'], best_match['score'])
 
-                    updated_tracks.append(track)
+                        updated_tracks.append(track)
 
-                    # remove from best matching detection from detections
-                    del dets[dets.index(best_match)]
+                        # remove from best matching detection from detections
+                        del dets[dets.index(best_match)]
 
             # if track was not updated
             if len(updated_tracks) == 0 or track is not updated_tracks[-1]:

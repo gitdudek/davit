@@ -170,4 +170,4 @@ def template_matching(img, tmplt, tmplt_bbox, factor, meth_idx):
     img_bbox_w = tmplt_w
     img_bbox_h = tmplt_h
     
-    return [img_bbox_left, img_bbox_top, img_bbox_w, img_bbox_h], tm_conf
+    return {'bbox':[img_bbox_left, img_bbox_top, img_bbox_w, img_bbox_h], 'score':tm_conf}
