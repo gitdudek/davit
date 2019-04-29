@@ -28,11 +28,9 @@ def track_ext_iou(detections, sigma_l, sigma_h, sigma_ext_iou, t_min, weight_iou
 
     tracks_active = []
     tracks_finished = []
-    # jeder frame wird einzeln durchlaufen (z.b frame_num=1 und detections_frame=16)
-    # also hat der frame 16 zugehörige detections
+
     for frame_num, detections_frame in enumerate(detections, start=1):
         # apply low threshold to detections
-        # alle detections größer gleich threshold
         dets = [det for det in detections_frame if det['score'] >= sigma_l]
         
         frame = cv2.imread(os.path.join(img_path, str(frame_num-1).zfill(6)+".jpg"), cv2.IMREAD_COLOR)
@@ -45,17 +43,18 @@ def track_ext_iou(detections, sigma_l, sigma_h, sigma_ext_iou, t_min, weight_iou
                 # template matching
                 template  = get_template(frame, track['bboxes'][-1])
                 matched_template = template_matching(frame, template, track['bboxes'][-1], factor=0.5, meth_idx=3) 
-                # IOU of found template and best_match_iou necessary to make sure the results are the same!
+                # IOU of matched_template and best_match_iou necessary to make sure the results are the similar!
                 if iou(best_match_iou['bbox'], matched_template['bbox']) >= 0.9:
                     # combined threshold
-                    if (weight_iou * iou(track['bboxes'][-1], best_match_iou['bbox'])) + ((1 - weight_iou) * tm_conf) >= sigma_ext_iou:
+                    if (weight_iou * iou(track['bboxes'][-1], best_match_iou['bbox'])) + ((1 - weight_iou) * matched_template['score']) >= sigma_ext_iou:
+                        # Evtl. Zeile drunter anpassen mit gemittelter bounding box aus iou und tm oder ähnliches!
                         track['bboxes'].append(best_match_iou['bbox'])
-                        track['max_score'] = max(track['max_score'], best_match['score'])
+                        track['max_score'] = max(track['max_score'], best_match_iou['score'])
 
                         updated_tracks.append(track)
 
                         # remove from best matching detection from detections
-                        del dets[dets.index(best_match)]
+                        del dets[dets.index(best_match_iou)]
 
             # if track was not updated
             if len(updated_tracks) == 0 or track is not updated_tracks[-1]:

@@ -10,7 +10,7 @@
 from time import time
 import argparse
 import os
-from iou_tracker import track_iou
+from iou_tracker import track_ext_iou
 from util import load_mot, save_to_csv
 
 # Fuer jede Sequenz eine Ordnerstruktur erstellen
@@ -22,22 +22,22 @@ def main(args):
         if seq == "name" or seq == "":
             continue
         else:
-            sigma_l = -0.5  # default -0.5
-            sigma_h = 0.5   # default 0.5
+            sigma_l = -0.5      # default -0.5
+            sigma_h = 0.5       # default 0.5
             sigma_ext_iou = 0.4 # default 0.4
-            t_min = 4       # default 4
+            t_min = 4           # default 4
 
             # uncomment line below if f4k2013 data is used
             # det_path = os.path.join(args.benchmark_dir,seq+"det.txt")
             # motchallenge data used
             det_path = os.path.join(args.benchmark_dir,seq,"det","det.txt")
-            img_dir = os.path.join(args.benchmark_dir,seq,"img1")
+            img_path = os.path.join(args.benchmark_dir,seq,"img1")
             out_path = os.path.join(args.res_dir,seq+"_res.txt")
             detections = load_mot(det_path)
 
             start = time()
             # adapt line below
-            tracks = track_iou(detections, sigma_l, sigma_h, sigma_iou, t_min)
+            tracks = track_ext_iou(detections, sigma_l, sigma_h, sigma_ext_iou, t_min, weight_iou, img_path)
             end = time()
 
             num_frames = len(detections)
