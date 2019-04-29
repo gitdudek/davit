@@ -24,17 +24,19 @@ def main(args):
         else:
             sigma_l = -0.5  # default -0.5
             sigma_h = 0.5   # default 0.5
-            sigma_iou = 0.4 # default 0.4
+            sigma_ext_iou = 0.4 # default 0.4
             t_min = 4       # default 4
 
             # uncomment line below if f4k2013 data is used
             # det_path = os.path.join(args.benchmark_dir,seq+"det.txt")
             # motchallenge data used
             det_path = os.path.join(args.benchmark_dir,seq,"det","det.txt")
+            img_dir = os.path.join(args.benchmark_dir,seq,"img1")
             out_path = os.path.join(args.res_dir,seq+"_res.txt")
             detections = load_mot(det_path)
 
             start = time()
+            # adapt line below
             tracks = track_iou(detections, sigma_l, sigma_h, sigma_iou, t_min)
             end = time()
 
@@ -45,13 +47,15 @@ def main(args):
 
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser(description="IOU Tracker on f4k-2013 data script")
+    parser = argparse.ArgumentParser(description="Extended IOU Tracker")
     parser.add_argument('-m', '--seqmap', type=str, required=True,
                         help="full path to the seqmap file to evaluate")
     parser.add_argument('-o', '--res_dir', type=str, required=True,
                         help="path to the results directory")
     parser.add_argument('-b', '--benchmark_dir', type=str, required=True,
                         help="path to the sequence directory")
+    parser.add_argument('-w', '--weight_iou', type=str, required=False, default=0.7
+                        help="weighting between iou and template matching")
 
 
     args = parser.parse_args()

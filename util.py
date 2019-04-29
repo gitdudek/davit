@@ -7,7 +7,7 @@
 
 import numpy as np
 import csv
-
+import cv2
 
 def load_mot(detections):
     """
@@ -113,3 +113,61 @@ def iou(bbox1, bbox2):
     size_union = size_1 + size_2 - size_intersection
 
     return size_intersection / size_union
+
+def get_template(img, bbox):
+    """
+    Cutting template out of image by using the bbox informations
+    bbox format: [bb_left,bb_top,bb_width,bb_height]
+    """
+    bbox = [int(i) for i in bbox]
+    template = img[bbox[1]:bbox[1]+bbox[3],bbox[0]:bbox[0]+bbox[2]]
+    
+    return template
+
+def template_matching(img, tmplt, tmplt_bbox, factor, meth_idx):
+    '''
+    Template Matching in defined scope of an image.
+    Input parameters:
+        - img = image to detect template
+        - tmplt = template to detect
+        - tmplt_box = bbox of last template in format [bb_left,bb_top,bb_w,bb_h] 
+        - factor = scope size as a factor of the template size
+        - meth_idx = choose between template matching methods (0 to 5)
+    '''
+    img_h, img_w = img.shape[:2]
+    tmplt_h, tmplt_w = tmplt.shape[:2]
+    
+    # determine scope dimensions
+    scope_w = int(tmplt_w + (tmplt_w * factor * 2))
+    scope_h = int(tmplt_h + (tmplt_h * factor * 2))
+    
+    # locating scope in image
+    scope_top = int(tmplt_bbox[1] - (0.5 * (scope_h - tmplt_h)))
+    scope_left = int(tmplt_bbox[0] - (0.5 * (scope_w - tmplt_w)))
+    
+    if scope_w > img_w or scope_h > img_h:
+        scope_w, scope_h = img_w, img_h
+        scope_top, scope_left = 0, 0
+    
+    # separate scope    
+    scope = img[scope_top:scope_top + scope_h, scope_left:scope_left + scope_w]
+    
+    # template matching
+    res = cv2.matchTemplate(scope,tmplt,meth_idx)
+    
+    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
+    print(min_val, max_val)
+    
+    if meth_idx == 4 or meth_idx == 5:
+        match_topleft = min_loc
+        tm_conf = 1 - min_val
+    else:
+        match_topleft = max_loc
+        tm_conf = max_val
+
+    img_bbox_left = scope_left + match_topleft[0] 
+    img_bbox_top = scope_top + match_topleft[1]
+    img_bbox_w = tmplt_w
+    img_bbox_h = tmplt_h
+    
+    return [img_bbox_left, img_bbox_top, img_bbox_w, img_bbox_h], tm_conf
