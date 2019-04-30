@@ -37,7 +37,7 @@ def main(args):
 
             start = time()
             # adapt line below
-            tracks = track_ext_iou(detections, sigma_l, sigma_h, sigma_ext_iou, t_min, weight_iou, img_path)
+            tracks = track_ext_iou(detections, sigma_l, sigma_h, sigma_ext_iou, t_min, args.weight_iou, img_path)
             end = time()
 
             num_frames = len(detections)
@@ -54,7 +54,7 @@ if __name__ == '__main__':
                         help="path to the results directory")
     parser.add_argument('-b', '--benchmark_dir', type=str, required=True,
                         help="path to the sequence directory")
-    parser.add_argument('-w', '--weight_iou', type=str, required=False, default=0.7
+    parser.add_argument('-w', '--weight_iou', type=str, required=False, default=0.7, 
                         help="weighting between iou and template matching")
 
 

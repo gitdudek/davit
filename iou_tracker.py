@@ -33,7 +33,7 @@ def track_ext_iou(detections, sigma_l, sigma_h, sigma_ext_iou, t_min, weight_iou
         # apply low threshold to detections
         dets = [det for det in detections_frame if det['score'] >= sigma_l]
         
-        frame = cv2.imread(os.path.join(img_path, str(frame_num-1).zfill(6)+".jpg"), cv2.IMREAD_COLOR)
+        frame = cv2.imread(os.path.join(img_path, str(frame_num).zfill(6)+".jpg"), cv2.IMREAD_COLOR)
 
         updated_tracks = []
         for track in tracks_active:

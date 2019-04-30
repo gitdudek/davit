@@ -142,13 +142,15 @@ def template_matching(img, tmplt, tmplt_bbox, factor, meth_idx):
     scope_h = int(tmplt_h + (tmplt_h * factor * 2))
     
     # locating scope in image
-    scope_top = int(tmplt_bbox[1] - (0.5 * (scope_h - tmplt_h)))
-    scope_left = int(tmplt_bbox[0] - (0.5 * (scope_w - tmplt_w)))
+    scope_top = max(0, int(tmplt_bbox[1] - (0.5 * (scope_h - tmplt_h))))
+    scope_left = max(0, int(tmplt_bbox[0] - (0.5 * (scope_w - tmplt_w))))
     
-    if scope_w > img_w or scope_h > img_h:
-        scope_w, scope_h = img_w, img_h
-        scope_top, scope_left = 0, 0
-    
+    # if scope exceeds image dimensions
+    if scope_w + scope_left > img_w:
+        scope_w = img_w - scope_left
+    if scope_h + scope_top > img_h:
+        scope_w = img_h -scope_top
+  
     # separate scope    
     scope = img[scope_top:scope_top + scope_h, scope_left:scope_left + scope_w]
     
