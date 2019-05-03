@@ -32,19 +32,20 @@ def track_ext_iou(detections, sigma_l, sigma_h, sigma_ext_iou, t_min, weight_iou
     for frame_num, detections_frame in enumerate(detections, start=1):
         # apply low threshold to detections
         dets = [det for det in detections_frame if det['score'] >= sigma_l]
-        
-        frame = cv2.imread(os.path.join(img_path, str(frame_num).zfill(6)+".jpg"), cv2.IMREAD_COLOR)
 
+        # read image
+        frame = cv2.imread(os.path.join(img_path, str(frame_num).zfill(6)+".jpg"), cv2.IMREAD_COLOR)
+        
         updated_tracks = []
         for track in tracks_active:
             if len(dets) > 0:
                 # get det with highest iou
                 best_match_iou = max(dets, key=lambda x: iou(track['bboxes'][-1], x['bbox']))
                 # template matching
-                template  = get_template(frame, track['bboxes'][-1])
+                template  = get_template(previous_frame, track['bboxes'][-1])
                 matched_template = template_matching(frame, template, track['bboxes'][-1], factor=0.5, meth_idx=3) 
                 # IOU of matched_template and best_match_iou necessary to make sure the results are the similar!
-                if iou(best_match_iou['bbox'], matched_template['bbox']) >= 0.9:
+                if iou(best_match_iou['bbox'], matched_template['bbox']) >= 0.5:
                     # combined threshold
                     if (weight_iou * iou(track['bboxes'][-1], best_match_iou['bbox'])) + ((1 - weight_iou) * matched_template['score']) >= sigma_ext_iou:
                         # Evtl. Zeile drunter anpassen mit gemittelter bounding box aus iou und tm oder ähnliches!
@@ -65,6 +66,8 @@ def track_ext_iou(detections, sigma_l, sigma_h, sigma_ext_iou, t_min, weight_iou
         # create new tracks
         new_tracks = [{'bboxes': [det['bbox']], 'max_score': det['score'], 'start_frame': frame_num} for det in dets]
         tracks_active = updated_tracks + new_tracks
+        
+        previous_frame = frame
 
     # finish all remaining active tracks
     tracks_finished += [track for track in tracks_active

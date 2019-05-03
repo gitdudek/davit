@@ -120,6 +120,15 @@ def get_template(img, bbox):
     bbox format: [bb_left,bb_top,bb_width,bb_height]
     """
     bbox = [int(i) for i in bbox]
+
+    bbox[0] = max(0, bbox[0])
+    bbox[1] = max(0, bbox[1])
+
+    if bbox[0]+bbox[2] > img.shape[1]:
+        bbox[2] = img.shape[1] - bbox[0]
+    if bbox[1]+bbox[3] > img.shape[0]:
+        bbox[3] = img.shape[0] - bbox[1]
+
     template = img[bbox[1]:bbox[1]+bbox[3],bbox[0]:bbox[0]+bbox[2]]
     
     return template
@@ -158,7 +167,6 @@ def template_matching(img, tmplt, tmplt_bbox, factor, meth_idx):
     res = cv2.matchTemplate(scope,tmplt,meth_idx)
     
     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
-    print(min_val, max_val)
     
     if meth_idx == 4 or meth_idx == 5:
         match_topleft = min_loc

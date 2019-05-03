@@ -36,7 +36,6 @@ def main(args):
             detections = load_mot(det_path)
 
             start = time()
-            # adapt line below
             tracks = track_ext_iou(detections, sigma_l, sigma_h, sigma_ext_iou, t_min, args.weight_iou, img_path)
             end = time()
 
