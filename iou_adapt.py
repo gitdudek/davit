@@ -22,17 +22,33 @@ def main(args):
         if seq == "name" or seq == "":
             continue
         else:
-            sigma_l = -0.5      # default -0.5
-            sigma_h = 0.5       # default 0.5
-            sigma_ext_iou = 0.4 # default 0.4
-            t_min = 4           # default 4
+            if "DPM" in seq:
+                sigma_l = -0.5
+                sigma_h = 0.5
+                sigma_ext_iou = 0.5
+                t_min = 4
+            elif "FRCNN" in seq:
+                sigma_l = 0.0
+                sigma_h = 0.9
+                sigma_ext_iou = 0.4
+                t_min = 3
+            elif "SDP" in seq:
+                sigma_l = 0.4
+                sigma_h = 0.5
+                sigma_ext_iou = 0.3
+                t_min = 2
+            else:
+                sigma_l = 0.4      # default -0.5
+                sigma_h = 0.5       # default 0.5
+                sigma_ext_iou = 0.2 # default 0.4
+                t_min = 2           # default 4
 
             # uncomment line below if f4k2013 data is used
             # det_path = os.path.join(args.benchmark_dir,seq+"det.txt")
             # motchallenge data used
             det_path = os.path.join(args.benchmark_dir,seq,"det","det.txt")
             img_path = os.path.join(args.benchmark_dir,seq,"img1")
-            out_path = os.path.join(args.res_dir,seq+"_res.txt")
+            out_path = os.path.join(args.res_dir,seq+".txt")
             detections = load_mot(det_path)
 
             start = time()
@@ -53,7 +69,7 @@ if __name__ == '__main__':
                         help="path to the results directory")
     parser.add_argument('-b', '--benchmark_dir', type=str, required=True,
                         help="path to the sequence directory")
-    parser.add_argument('-w', '--weight_iou', type=str, required=False, default=0.7, 
+    parser.add_argument('-w', '--weight_iou', type=float, required=False, default=0.7, 
                         help="weighting between iou and template matching")
 
 
