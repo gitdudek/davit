@@ -8,8 +8,10 @@ import os
 from time import time
 from util import load_mot, iou, get_template, template_matching
 
+from KCF import kcftracker
 
-def track_ext_iou(detections, sigma_l, sigma_h, sigma_ext_iou, t_min, weight_iou, img_path):
+
+def track_ext_iou(detections, sigma_l, sigma_h, sigma_ext_iou, t_min, weight_iou, ttl_vtracking, img_path):
     """
     Extended IOU tracker by visual informations.
 
@@ -20,6 +22,7 @@ def track_ext_iou(detections, sigma_l, sigma_h, sigma_ext_iou, t_min, weight_iou
          sigma_ext_iou (float): Extended IOU threshold.
          t_min (float): minimum track length in frames.
          weight_iou (float): weighting between iou and template matching scores
+         ttl_vtracking (float): maximum length of visual track (amount of framess)
          img_path (string): image directory
 
     Returns:
@@ -28,6 +31,7 @@ def track_ext_iou(detections, sigma_l, sigma_h, sigma_ext_iou, t_min, weight_iou
 
     tracks_active = []
     tracks_finished = []
+    trackers = []
 
     for frame_num, detections_frame in enumerate(detections, start=1):
         # apply low threshold to detections
@@ -44,11 +48,7 @@ def track_ext_iou(detections, sigma_l, sigma_h, sigma_ext_iou, t_min, weight_iou
                 # template matching
                 template  = get_template(previous_frame, track['bboxes'][-1])
                 matched_template = template_matching(frame, template, track['bboxes'][-1], factor=0.1, meth_idx=5) 
-                # IOU of matched_template and best_match_iou necessary to make sure the results are the similar!
-                # change line below to make sure that template matching can be turned off
-                # line macht keinen sinn, da hier schon iou zwischen tmpl match und iou verglichen wird ohne dass der score des template matchings dabei berücksichtigt wird 
-                #if iou(best_match_iou['bbox'], matched_template['bbox']) >= 0.5:
-                    # combined threshold
+                
                 if (weight_iou * iou(track['bboxes'][-1], best_match_iou['bbox'])) + ((1 - weight_iou) * matched_template['score']) >= sigma_ext_iou:
                     # Evtl. Zeile drunter anpassen mit gemittelter bounding box aus iou und tm oder ähnliches!
                     track['bboxes'].append(best_match_iou['bbox'])

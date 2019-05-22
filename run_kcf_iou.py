@@ -10,8 +10,9 @@
 from time import time
 import argparse
 import os
-from visual_iou_tracker import track_ext_iou
-from util import load_mot, save_to_csv
+from iou_tracker import track_iou
+from kcf_tracker import track_kcf
+from util import load_mot, save_to_csv, bbox_formatting
 
 # Fuer jede Sequenz eine Ordnerstruktur erstellen
 def main(args):
@@ -25,22 +26,22 @@ def main(args):
             if "DPM" in seq:
                 sigma_l = -0.5
                 sigma_h = 0.5
-                sigma_ext_iou = 0.5
+                sigma_iou = 0.5
                 t_min = 4
             elif "FRCNN" in seq:
                 sigma_l = 0.0
                 sigma_h = 0.9
-                sigma_ext_iou = 0.4
+                sigma_iou = 0.4
                 t_min = 3
             elif "SDP" in seq:
                 sigma_l = 0.4
                 sigma_h = 0.5
-                sigma_ext_iou = 0.3
+                sigma_iou = 0.3
                 t_min = 2
             else:
-                sigma_l = 0.4      # default -0.5
+                sigma_l = 0.4       # default -0.5
                 sigma_h = 0.5       # default 0.5
-                sigma_ext_iou = 0.2 # default 0.4
+                sigma_iou = 0.2     # default 0.4
                 t_min = 2           # default 4
 
             ttl_vtracking = 100 # maximum length of visual track (amount of framess)
@@ -54,13 +55,15 @@ def main(args):
             detections = load_mot(det_path)
 
             start = time()
-            tracks = track_ext_iou(detections, sigma_l, sigma_h, sigma_ext_iou, t_min, args.weight_iou, ttl_vtracking, img_path)
+            tracks = track_iou(detections, sigma_l, sigma_h, sigma_iou, t_min)
+            tracks_iou = bbox_formatting(tracks)
+            tracks_kcf = track_kcf(tracks_iou, img_path, ttl_vtracking)
             end = time()
 
             num_frames = len(detections)
             print("finished " + seq + " at " + str(int(num_frames / (end - start))) + " fps!")
 
-            save_to_csv(out_path, tracks)
+            save_to_csv(out_path, tracks_kcf)
 
 if __name__ == '__main__':
 
@@ -71,8 +74,6 @@ if __name__ == '__main__':
                         help="path to the results directory")
     parser.add_argument('-b', '--benchmark_dir', type=str, required=True,
                         help="path to the sequence directory")
-    parser.add_argument('-w', '--weight_iou', type=float, required=False, default=0.7, 
-                        help="weighting between iou and template matching")
 
 
     args = parser.parse_args()

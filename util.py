@@ -66,9 +66,13 @@ def save_to_csv(out_path, tracks):
                 row = {'id': id_,
                        'frame': track['start_frame'] + i,
                        'x': bbox[0],
+                       #'x': int(bbox[0]),
                        'y': bbox[1],
-                       'w': bbox[2] - bbox[0],
-                       'h': bbox[3] - bbox[1],
+                       #'y': int(bbox[1]),
+                       #'w': bbox[2] - bbox[0],
+                       'w': bbox[2],
+                       #'h': bbox[3] - bbox[1],
+                       'h': bbox[3],
                        'score': track['max_score'],
                        'wx': -1,
                        'wy': -1,
@@ -181,3 +185,15 @@ def template_matching(img, tmplt, tmplt_bbox, factor, meth_idx):
     img_bbox_h = tmplt_h
     
     return {'bbox':[img_bbox_left, img_bbox_top, img_bbox_w, img_bbox_h], 'score':tm_conf}
+
+def bbox_formatting(tracks):
+    '''
+    Formatting the bboxes from [x1, y1, x2, y2] to [x1, y1, w, h]
+    '''
+
+    for track in tracks:
+        for bbox in track['bboxes']:
+            bbox[2] -= bbox[0]
+            bbox[3] -= bbox[1]
+    
+    return tracks
