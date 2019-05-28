@@ -12,7 +12,7 @@ import argparse
 import os
 from iou_tracker import track_iou
 from kcf_tracker import track_kcf
-from util import load_mot, save_to_csv, bbox_formatting
+from util import load_mot, save_to_csv, bbox_formatting, merge
 
 # Fuer jede Sequenz eine Ordnerstruktur erstellen
 def main(args):
@@ -44,7 +44,8 @@ def main(args):
                 sigma_iou = 0.2     # default 0.4
                 t_min = 2           # default 4
 
-            ttl_vtracking = 100 # maximum length of visual track (amount of framess)
+            ttl_vtracking = 20 # maximum length of visual track (amount of framess)
+            sigma_iou_merge = 0.5
 
             # uncomment line below if f4k2013 data is used
             # det_path = os.path.join(args.benchmark_dir,seq+"det.txt")
@@ -57,13 +58,14 @@ def main(args):
             start = time()
             tracks = track_iou(detections, sigma_l, sigma_h, sigma_iou, t_min)
             tracks_iou = bbox_formatting(tracks)
-            tracks_kcf = track_kcf(tracks_iou, img_path, ttl_vtracking)
+            tracks_iou_ext, tracks_kcf_front, tracks_kcf_rear = track_kcf(tracks_iou, img_path, ttl_vtracking)
+            tracks_merged = merge(tracks_iou_ext, tracks_kcf_front, tracks_kcf_rear, sigma_iou_merge)
             end = time()
 
             num_frames = len(detections)
             print("finished " + seq + " at " + str(int(num_frames / (end - start))) + " fps!")
 
-            save_to_csv(out_path, tracks_kcf)
+            save_to_csv(out_path, tracks_merged)
 
 if __name__ == '__main__':
 

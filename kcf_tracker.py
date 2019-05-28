@@ -12,14 +12,19 @@ def track_kcf(tracks, img_path, ttl_vtracking):
     ttl_vtracking = Maximum length of frames for visual track
 
     Output parameters:
-    tracks_finished = Updated tracks by visual informations
+    tracks_iou_ext = Updated iou tracks with id's
+    front_tracks = Front parts of the kcf tracks
+    rear_tracks = Rear parts of the kcf tracks
     """
+    init_frame = min(tracks, key=lambda x: x['start_frame'])['start_frame']
     final_frame = max(tracks, key=lambda x: x['start_frame'])['start_frame']
+    front_tracks, rear_tracks = [], []
+    _id = 1
 
     for track in tracks:
+        track.update({'id':_id})
         # tracking backwards
-        vis_track_bw = []
-        if track['start_frame'] > 1:
+        if track['start_frame'] > init_frame:
             # initialization
             tracker_bw = kcftracker.KCFTracker(False, True, True)
             frame_name = os.path.join(img_path, str(track['start_frame']).zfill(6) + '.jpg')
@@ -32,17 +37,14 @@ def track_kcf(tracks, img_path, ttl_vtracking):
                 frame_name = os.path.join(img_path, str(frame).zfill(6) + '.jpg')
                 img = cv2.imread(frame_name)
                 tracking_update = tuple(tracker_bw.update(img))
-                vis_track_bw.insert(0, tracking_update)
+                front_tracks.append({'frame':frame,'id':_id,'bbox':tracking_update})
 
                 if frame <= 1 or count_frames >= ttl_vtracking - 1:
-                    track['bboxes'] = vis_track_bw + track['bboxes']
-                    track['start_frame'] = frame
                     break
 
                 count_frames += 1
 
         # tracking forwards
-        vis_track_fw = []
         last_frame = track['start_frame'] + len(track['bboxes']) - 1
         if last_frame < final_frame:
             # initialization
@@ -57,16 +59,15 @@ def track_kcf(tracks, img_path, ttl_vtracking):
                 frame_name = os.path.join(img_path, str(frame).zfill(6) + '.jpg')
                 img = cv2.imread(frame_name)
                 tracking_update = tuple(tracker_fw.update(img))
-                vis_track_fw.append(tracking_update)
-                # if case wird nicht erfüllt!!!
+                rear_tracks.append({'frame':frame,'id':_id,'bbox':tracking_update})
+
                 if frame >= final_frame or count_frames >= ttl_vtracking - 1:
-                    track['bboxes'] = track['bboxes'] + vis_track_fw
                     break
 
                 count_frames += 1
+        _id += 1
 
-
-    return tracks
+    return tracks, front_tracks, rear_tracks
 
 ### testing ###
 
@@ -99,6 +100,6 @@ for jj in range(len(tracks_dict3['bboxes'])):
 tracks_list = [tracks_dict] + [tracks_dict2] + [tracks_dict3]
 
 
-tracking_results = track_kcf(tracks_list, "/Volumes/Transcend/MOT17/train_adapt/MOT17-05-SDP/img1", 10)
+res_main, res_front, res_rear = track_kcf(tracks_list, "/Volumes/Transcend/MOT17/train_adapt/MOT17-05-SDP/img1", 10)
 #print(tracking_results)
 save_to_csv('/Volumes/Transcend/MOT17/kcf_iou_out/res.txt',tracking_results)
