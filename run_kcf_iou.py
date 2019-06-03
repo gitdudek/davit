@@ -12,7 +12,7 @@ import argparse
 import os
 from iou_tracker import track_iou
 from kcf_tracker import track_kcf
-from util import load_mot, save_to_csv, bbox_formatting, merge
+from util import load_mot, save_to_csv, merge
 
 # Fuer jede Sequenz eine Ordnerstruktur erstellen
 def main(args):
@@ -56,8 +56,7 @@ def main(args):
             detections = load_mot(det_path)
 
             start = time()
-            tracks = track_iou(detections, sigma_l, sigma_h, sigma_iou, t_min)
-            tracks_iou = bbox_formatting(tracks)
+            tracks_iou = track_iou(detections, sigma_l, sigma_h, sigma_iou, t_min)
             tracks_iou_ext, tracks_kcf_front, tracks_kcf_rear = track_kcf(tracks_iou, img_path, ttl_vtracking)
             tracks_merged = merge(tracks_iou_ext, tracks_kcf_front, tracks_kcf_rear, sigma_iou_merge)
             end = time()

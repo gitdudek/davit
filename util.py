@@ -37,7 +37,7 @@ def load_mot(detections):
         idx = raw[:, 0] == i
         #print('index is {}'.format(i))
         bbox = raw[idx, 2:6]
-        bbox[:, 2:4] += bbox[:, 0:2]  # x1, y1, w, h -> x1, y1, x2, y2
+        #bbox[:, 2:4] += bbox[:, 0:2]  # x1, y1, w, h -> x1, y1, x2, y2
         scores = raw[idx, 6]
         dets = []
         for bb, s in zip(bbox, scores):
@@ -87,8 +87,8 @@ def iou(bbox1, bbox2):
     Calculates the intersection-over-union of two bounding boxes.
 
     Args:
-        bbox1 (numpy.array, list of floats): bounding box in format x1,y1,x2,y2.
-        bbox2 (numpy.array, list of floats): bounding box in format x1,y1,x2,y2.
+        bbox1 (numpy.array, list of floats): bounding box in format x1,y1,w,h.
+        bbox2 (numpy.array, list of floats): bounding box in format x1,y1,w,h.
 
     Returns:
         int: intersection-over-onion of bbox1, bbox2
@@ -103,16 +103,21 @@ def iou(bbox1, bbox2):
     # get the overlap rectangle
     overlap_x0 = max(x0_1, x0_2)
     overlap_y0 = max(y0_1, y0_2)
-    overlap_x1 = min(x1_1, x1_2)
-    overlap_y1 = min(y1_1, y1_2)
+    #overlap_x1 = min(x1_1, x1_2)
+    overlap_x1 = min(x1_1 + x0_1, x1_2 + x0_2)
+    #overlap_y1 = min(y1_1, y1_2)
+    overlap_y1 = min(y1_1 + y0_1, y1_2 + y0_2)
+
 
     # check if there is an overlap
     if overlap_x1 - overlap_x0 <= 0 or overlap_y1 - overlap_y0 <= 0:
         return 0
 
     # if yes, calculate the ratio of the overlap to each ROI size and the unified size
-    size_1 = (x1_1 - x0_1) * (y1_1 - y0_1)
-    size_2 = (x1_2 - x0_2) * (y1_2 - y0_2)
+    #size_1 = (x1_1 - x0_1) * (y1_1 - y0_1)
+    size_1 = x1_1 * y1_1
+    #size_2 = (x1_2 - x0_2) * (y1_2 - y0_2)
+    size_2 = x1_2 * y1_2
     size_intersection = (overlap_x1 - overlap_x0) * (overlap_y1 - overlap_y0)
     size_union = size_1 + size_2 - size_intersection
 
@@ -186,21 +191,9 @@ def template_matching(img, tmplt, tmplt_bbox, factor, meth_idx):
     
     return {'bbox':[img_bbox_left, img_bbox_top, img_bbox_w, img_bbox_h], 'score':tm_conf}
 
-def bbox_formatting(tracks):
-    '''
-    Formatting the bboxes from [x1, y1, x2, y2] to [x1, y1, w, h]
-    '''
-
-    for track in tracks:
-        for bbox in track['bboxes']:
-            bbox[2] -= bbox[0]
-            bbox[3] -= bbox[1]
-    
-    return tracks
-
 def merge(main_tracks, front_tracks, rear_tracks, sigma_iou_merge):
     '''
-    Merge tracks of front-, main- and rear-parts using the iou paradigm
+    Merge tracklets of front-, main- and rear-parts using the iou paradigm
 
     Input parameters:
     - main_tracks = Main tracks to be merged
@@ -211,71 +204,92 @@ def merge(main_tracks, front_tracks, rear_tracks, sigma_iou_merge):
     Output parameters:
     - tracks merged = Resulting merged tracks
     '''
+    
+    ii = 0
 
-    tracks_merged, ids = [], []
-
-    for bbox in front_tracks:
-        if bbox['id'] not in ids:
-            ids.append(bbox['id'])
-
-    for _id in ids:
+    while ii < len(main_tracks):
+        main_track = main_tracks[ii]
         # seperate kcf track with the actual id
-        track = [bbox for bbox in front_tracks if bbox['id']==_id]
+        track = [bbox for bbox in rear_tracks if bbox['id']==main_track['id']] # track muss nicht neu bestimmt werden wenn ii sich nicht geändert hat
         potential_assignments = []
         
         for bbox in track:
             # isolate possible assignments of the same frame
-            rear_tracks_frame = [r_bbox for r_bbox in rear_tracks if r_bbox['frame']==bbox['frame']]
-            best_match = max(rear_tracks_frame, key=lambda x: iou(bbox['bbox'], x['bbox']))
-            # assign best match to actual bbox
-            bbox.update({'match_id':best_match['id'],'iou':iou(bbox['bbox'],best_match['bbox'])})
-            # add best_match to possible assignments
-            if len(potential_assignments) == 0:
-                potential_assignments.append({'id':best_match['id'],'iou_ttl':bbox['iou'],'frames_ttl':1})
+            front_tracks_frame = [f_bbox for f_bbox in front_tracks if f_bbox['frame']==bbox['frame']]
+            if front_tracks_frame:
+                best_match = max(front_tracks_frame, key=lambda x: iou(bbox['bbox'], x['bbox']))
+                # assign best match to actual bbox
+                bbox.update({'match_id':best_match['id'],'iou':iou(bbox['bbox'],best_match['bbox'])})
+                # add best_match to possible assignments
+                if len(potential_assignments) == 0:
+                    potential_assignments.append({'id':best_match['id'],'iou_ttl':bbox['iou'],'frames_ttl':1})
+                else:
+                    matched_id = False
+                    for pot_assignment in potential_assignments:
+                        if pot_assignment['id'] == bbox['match_id']:
+                            pot_assignment['iou_ttl'] += bbox['iou']
+                            pot_assignment['frames_ttl'] += 1
+                            matched_id = True
+                            break
+                    if matched_id == False:
+                        potential_assignments.append({'id':best_match['id'],'iou_ttl':bbox['iou'],'frames_ttl':1})  
             else:
-                matched_id = False
-                for pot_assignment in potential_assignments:
-                    if pot_assignment['id'] == bbox['match_id']:
-                        pot_assignment['iou_ttl'] += bbox['iou']
-                        pot_assignment['frames_ttl'] += 1
-                        matched_id = True
+                break
+
+        if potential_assignments:        
+            # find the best assignment
+            best_assignment = max(potential_assignments, key=lambda x: x['iou_ttl']/x['frames_ttl'])
+
+            # merging
+            if (best_assignment['iou_ttl']/best_assignment['frames_ttl']) >= sigma_iou_merge:
+
+                # id des rear_tracks ist main_track['id']
+                for merging_track in main_tracks:
+                    if merging_track['id'] == best_assignment['id']:
                         break
-                if matched_id == False:
-                    potential_assignments.append({'id':best_match['id'],'iou_ttl':bbox['iou'],'frames_ttl':1})  
 
-        # find the best assignment
-        best_assignment = max(potential_assignments, key=lambda x: x['iou_ttl'])
+                kcf_start_frame = main_track['start_frame'] + len(main_track['bboxes'])
+                kcf_last_frame = merging_track['start_frame'] - 1
 
-        # merging
-        if (best_assignment['iou_ttl']/best_assignment['frames_ttl']) >= sigma_iou_merge:
-            '''
-            Wie soll gemerged werden? Bestimmung der Frames zum mergen!
-            Welche BBoxes sollen für das Merging genutzt werden? Front_tracks? Rear_tracks?
-            IOU aus front und rear? Mitte aus Front und Rear?
-
-            Aus dem IOU-Track des Front-Tracks muss der erste Frame ermittelt werden! (mittels ID)
-            Aus dem IOU-Trak des Rear-Tracks muss der letzte Frame ermittelt werden!
-            Alle dazwischen liegenden Frames werden duch KCF befüllt!
-            '''
-            # unten sehenden code überarbeiten!!!!
-            found_fam, found_fbm = False, False
-            for main_track in main_tracks:
-                if main_track['id'] == _id:
-                    track_after_merging = main_track
-                    frame_after_merging = main_track['start_frame']
-                    found_fam = True
-                elif main_track['id'] == best_assignment['id']:
-                    track_before_merging = main_track
-                    frame_before_merging = main_track['start_frame'] + len(main_track['bboxes'])
-                    found_fbm = True
-                elif found_fam and found_fbm == True:
-                    break
-            
-            # IOU Track mit der größeren ID muss entfernt werden!
-            # Der rear_track des best_assignments muss nach dem Merging entfernt werden!
-            # Am Ende der Function alle Tracks neu nummerieren mit IDs
-            # --> Evtl. nicht notwendig, da IDs später in save_to_csv verteilt werden!
-        
-
-        tracks_merged  = 1
-    return tracks_merged
+                # main_track + kcf_track
+                for frame in range(kcf_start_frame, kcf_last_frame + 1):
+                    kcf_bbox = next(bbox for bbox in track if bbox['frame'] == frame)
+                    main_track['bboxes'].append(kcf_bbox['bbox'])
+                # extended track + assigned iou track
+                main_track['bboxes'] += merging_track['bboxes']
+                
+                # delete rear_track of IOU1
+                jj = 0
+                while jj < len(rear_tracks):
+                    r_track = rear_tracks[jj]
+                    if r_track['id'] == main_track['id']:
+                        del rear_tracks[jj]
+                    else:
+                        jj += 1
+                # delete front_track of IOU2
+                kk = 0
+                while kk < len(front_tracks):
+                    f_track = front_tracks[kk]
+                    if f_track['id'] == best_assignment['id']:
+                        del front_tracks[kk]
+                    else:
+                        kk += 1
+                # reassign rear_track of IOU2 to IOU1 
+                for rear_track in rear_tracks:
+                    if rear_track['id'] == best_assignment['id']:
+                        rear_track['id'] = main_track['id']
+                # delete IOU2 in main_tracks
+                ll = 0
+                while ll < len(main_tracks):
+                    m_track = main_tracks[ll]
+                    if m_track['id']==best_assignment['id']:
+                        del main_tracks[ll]
+                    else:
+                        ll += 1
+                # Am Ende der Function alle Tracks neu nummerieren mit IDs
+                # --> Evtl. nicht notwendig, da IDs später in save_to_csv verteilt werden!
+            else:
+                ii += 1
+        else:
+            ii += 1
+    return main_tracks

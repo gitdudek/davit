@@ -71,7 +71,7 @@ def track_kcf(tracks, img_path, ttl_vtracking):
 
 ### testing ###
 
-import pandas as pd
+'''import pandas as pd
 from util import save_to_csv
 
 directory = '/Volumes/Transcend/MOT17/train_adapt/MOT17-05-SDP/gt/gt.txt'
@@ -102,4 +102,4 @@ tracks_list = [tracks_dict] + [tracks_dict2] + [tracks_dict3]
 
 res_main, res_front, res_rear = track_kcf(tracks_list, "/Volumes/Transcend/MOT17/train_adapt/MOT17-05-SDP/img1", 10)
 #print(tracking_results)
-save_to_csv('/Volumes/Transcend/MOT17/kcf_iou_out/res.txt',tracking_results)
+save_to_csv('/Volumes/Transcend/MOT17/kcf_iou_out/res.txt',tracking_results)'''
