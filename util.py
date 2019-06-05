@@ -8,6 +8,29 @@
 import numpy as np
 import csv
 import cv2
+import math
+
+import cProfile, pstats, io
+
+def profile(fnc):
+    
+    """A decorator that uses cProfile to profile a function"""
+    
+    def inner(*args, **kwargs):
+        
+        pr = cProfile.Profile()
+        pr.enable()
+        retval = fnc(*args, **kwargs)
+        pr.disable()
+        s = io.StringIO()
+        sortby = 'cumulative'
+        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        ps.print_stats()
+        print(s.getvalue())
+        return retval
+
+    return inner
+
 
 def load_mot(detections):
     """
@@ -191,6 +214,7 @@ def template_matching(img, tmplt, tmplt_bbox, factor, meth_idx):
     
     return {'bbox':[img_bbox_left, img_bbox_top, img_bbox_w, img_bbox_h], 'score':tm_conf}
 
+#@profile
 def merge(main_tracks, front_tracks, rear_tracks, sigma_iou_merge):
     '''
     Merge tracklets of front-, main- and rear-parts using the iou paradigm
@@ -250,10 +274,12 @@ def merge(main_tracks, front_tracks, rear_tracks, sigma_iou_merge):
 
                 kcf_start_frame = main_track['start_frame'] + len(main_track['bboxes'])
                 kcf_last_frame = merging_track['start_frame'] - 1
-
                 # main_track + kcf_track
                 for frame in range(kcf_start_frame, kcf_last_frame + 1):
-                    kcf_bbox = next(bbox for bbox in track if bbox['frame'] == frame)
+                    if frame <= math.ceil((kcf_last_frame + kcf_start_frame) / 2):
+                        kcf_bbox = next(bbox for bbox in track if bbox['frame'] == frame)
+                    else:
+                        kcf_bbox = next(bbox for bbox in front_tracks if bbox['frame'] == frame and bbox['id'] == best_assignment['id'])
                     main_track['bboxes'].append(kcf_bbox['bbox'])
                 # extended track + assigned iou track
                 main_track['bboxes'] += merging_track['bboxes']
@@ -286,8 +312,6 @@ def merge(main_tracks, front_tracks, rear_tracks, sigma_iou_merge):
                         del main_tracks[ll]
                     else:
                         ll += 1
-                # Am Ende der Function alle Tracks neu nummerieren mit IDs
-                # --> Evtl. nicht notwendig, da IDs später in save_to_csv verteilt werden!
             else:
                 ii += 1
         else:
