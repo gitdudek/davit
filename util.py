@@ -9,8 +9,11 @@ import numpy as np
 import csv
 import cv2
 import math
-
+import os
+from itertools import combinations
+#from kcf_tracker import read_img
 import cProfile, pstats, io
+
 
 def profile(fnc):
     
@@ -146,6 +149,96 @@ def iou(bbox1, bbox2):
 
     return size_intersection / size_union
 
+def detections_preprocessing(detections,iou_filter):
+    '''
+    Preprocessing detections. Filters detections for every frame whose IOU overshoots the iou_filter.
+    When exceeding the iou_filter the detection with the higher score will be kept.
+
+    Input parameters:
+    - detections: Detections to be preprocessed
+    - iou_filter: Every detection with iou >= iou_filter to another detection will be filtered
+
+    Output parameters:
+    - detections: Filtered detections
+    '''
+
+    for dets in detections:
+        del_idxs = []
+        combs = list(combinations(range(len(dets)),2))
+        for comb in combs:
+            iou_val = iou(dets[comb[0]]['bbox'],dets[comb[1]]['bbox'])
+            if iou_val >= iou_filter:
+                if dets[comb[0]]['score'] <= dets[comb[1]]['score']:
+                    if not comb[0] in del_idxs:
+                        del_idxs.append(comb[0])
+                else:
+                    if not comb[1] in del_idxs:
+                        del_idxs.append(comb[1])
+        for del_idx in sorted(del_idxs, reverse=True):
+                del dets[del_idx]
+    return detections
+
+def get_center(bbox):
+    '''
+    Get center point of Boundingbox
+    '''
+    x_center = bbox[0] + (bbox[2]/2)
+    y_center = bbox[1] + (bbox[3]/2)
+
+    return (x_center,y_center)
+
+def get_angle(pt1, pt2):
+    '''
+    Calculating the angle between two 2d points (x1,y1), (x2,y2)
+    Min angle = 0
+    Max angle = 180
+    '''
+    delta_x = pt2[0] - pt1[0]
+    delta_y = pt2[1] - pt1[1]
+
+    angle = math.atan2(delta_x, delta_y)/math.pi*180
+    #angle = math.degrees(math.atan2(delta_x, delta_y))
+    if angle < 0:
+        angle = 360 + angle
+
+    return angle
+
+'''def compare_points(pt1, pt2):
+    a = np.array(pt1)
+    b = np.array([0,0])
+    c = np.array(pt2)
+
+    ba = a - b
+    bc = c - b
+
+    cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
+    angle = np.arccos(cosine_angle)'''
+
+def get_deviation(angle1, angle2):
+    '''
+    Returns deviation
+    '''
+    return abs(angle1-angle2)
+
+def scale(value, min_value, max_value, min_scale, max_scale):
+    '''
+    Scaling a value to given range
+    '''
+    range_value = (max_value - min_value)  
+    range_scale = (max_scale - min_scale)
+    return (((value - min_value) * range_scale) / range_value) + min_scale
+
+def cost_function(x,y,weight_x,weight_y):
+    '''
+    Cost function
+    '''
+    return (weight_x * x) + (weight_y * y)
+
+
+def read_img(img_path, frame):
+    full_path = os.path.join(img_path, str(frame).zfill(6) + '.jpg')
+    return cv2.imread(full_path)
+
 def get_template(img, bbox):
     """
     Cutting template out of image by using the bbox informations
@@ -212,10 +305,195 @@ def template_matching(img, tmplt, tmplt_bbox, factor, meth_idx):
     img_bbox_w = tmplt_w
     img_bbox_h = tmplt_h
     
-    return {'bbox':[img_bbox_left, img_bbox_top, img_bbox_w, img_bbox_h], 'score':tm_conf}
-
+    bbox = tuple([img_bbox_left, img_bbox_top, img_bbox_w, img_bbox_h])
+    return {'bbox':bbox, 'score':tm_conf}
 #@profile
+def track_templatematch(tracks, img_path, ttl_vtracking, window_size, tm_param):
+
+    init_frame = min(tracks, key=lambda x: x['start_frame'])['start_frame']
+    final_frame = max(tracks, key=lambda x: x['start_frame'])['start_frame']
+
+    templates, front_tracks, rear_tracks = [], [], []
+
+    _id = 1
+    # tracking forwards
+    for frame in range(init_frame, final_frame):
+        img_read = False
+        if templates:
+            img = read_img(img_path, frame)
+            img_read = True
+            # update tracks at actual frame
+            del_idxs = []
+            for idx, tmplt in enumerate(templates):
+                iou_track = next(track for track in tracks if track['id'] == tmplt['id'])
+                max_frame = iou_track['start_frame'] + len(iou_track['bboxes']) + ttl_vtracking - 1
+                if frame <= min(max_frame, final_frame):
+                    # template matching
+                    template_match = template_matching(img,tmplt['template'],tmplt['bbox'],window_size,tm_param)
+                    rear_tracks.append({'frame':frame,'id':tmplt['id'],'bbox':template_match['bbox'],'score':template_match['score']})
+                    # update template
+                    tmplt['template'] = get_template(img,template_match['bbox'])
+                    tmplt['bbox'] = template_match['bbox']
+                else:
+                    del_idxs.append(idx)
+            # delete finished kcf trackers
+            for del_idx in sorted(del_idxs, reverse=True):
+                del templates[del_idx]
+        
+        for track in tracks:
+
+            if frame == init_frame:
+                track.update({'id':_id})
+                _id += 1
+            # initialization
+            if track['start_frame'] + len(track['bboxes']) -1 == frame:
+                if not img_read:
+                    img = read_img(img_path, frame)
+                    img_read = True
+                template = get_template(img, track['bboxes'][-1])
+                templates.append({'template':template, 'bbox':track['bboxes'][-1],'id':track['id']})
+    # tracking backwards
+    templates = []
+
+    for frame in range(final_frame, init_frame, -1):
+        img_read = False
+        if templates:
+            img = read_img(img_path, frame)
+            img_read = True
+            # update tracks at actual frame
+            del_idxs = []
+            for idx, tmplt in enumerate(templates):
+                iou_track = next(track for track in tracks if track['id'] == tmplt['id'])
+                min_frame = iou_track['start_frame'] - ttl_vtracking - 1
+                if frame > max(min_frame, init_frame):
+                    # template matching
+                    template_match = template_matching(img,tmplt['template'],tmplt['bbox'],1,3)
+                    front_tracks.append({'frame':frame,'id':tmplt['id'],'bbox':template_match['bbox'],'score':template_match['score']})
+                    # update template
+                    tmplt['template'] = get_template(img,template_match['bbox'])
+                    tmplt['bbox'] = template_match['bbox']
+                else:
+                    del_idxs.append(idx)
+            # delete finished kcf trackers
+            for del_idx in sorted(del_idxs, reverse=True):
+                del templates[del_idx]
+        
+        for track in tracks:
+            # initialization
+            if track['start_frame'] == frame:
+                if not img_read:
+                    img = read_img(img_path, frame)
+                    img_read = True
+                template = get_template(img, track['bboxes'][0])
+                templates.append({'template':template, 'bbox':track['bboxes'][0],'id':track['id']})
+
+    return tracks, front_tracks, rear_tracks
+
 def merge(main_tracks, front_tracks, rear_tracks, sigma_iou_merge):
+    '''
+    Merge tracklets of front-, main- and rear-parts using the iou paradigm
+
+    Input parameters:
+    - main_tracks = Main tracks to be merged
+    - front_tracks = Front tracks of the belonging main tracks
+    - rear_tracks = Rear tracks of the belonging main tracks
+    - simga_iou_merge = IOU threshold to consider parts for merging
+
+    Output parameters:
+    - tracks merged = Resulting merged tracks
+    '''
+    
+    ii = 0
+
+    while ii < len(main_tracks):
+        main_track = main_tracks[ii]
+        # seperate kcf track with the actual id
+        track = [bbox for bbox in rear_tracks if bbox['id']==main_track['id']] # track muss nicht neu bestimmt werden wenn ii sich nicht geändert hat
+        potential_assignments = []
+        
+        for bbox in track:
+            # isolate possible assignments of the same frame
+            front_tracks_frame = [f_bbox for f_bbox in front_tracks if f_bbox['frame']==bbox['frame']]
+            if front_tracks_frame:
+                best_match = max(front_tracks_frame, key=lambda x: iou(bbox['bbox'], x['bbox']))
+                # assign best match to actual bbox
+                bbox.update({'match_id':best_match['id'],'iou':iou(bbox['bbox'],best_match['bbox'])})
+                # add best_match to possible assignments
+                if len(potential_assignments) == 0:
+                    potential_assignments.append({'id':best_match['id'],'iou_ttl':bbox['iou'],'frames_ttl':1})
+                else:
+                    matched_id = False
+                    for pot_assignment in potential_assignments:
+                        if pot_assignment['id'] == bbox['match_id']:
+                            pot_assignment['iou_ttl'] += bbox['iou']
+                            pot_assignment['frames_ttl'] += 1
+                            matched_id = True
+                            break
+                    if matched_id == False:
+                        potential_assignments.append({'id':best_match['id'],'iou_ttl':bbox['iou'],'frames_ttl':1})  
+            else:
+                break
+
+        if potential_assignments:        
+            # find the best assignment
+            best_assignment = max(potential_assignments, key=lambda x: x['iou_ttl']/x['frames_ttl'])
+
+            # merging
+            if (best_assignment['iou_ttl']/best_assignment['frames_ttl']) >= sigma_iou_merge:
+
+                # id des rear_tracks ist main_track['id']
+                for merging_track in main_tracks:
+                    if merging_track['id'] == best_assignment['id']:
+                        break
+
+                kcf_start_frame = main_track['start_frame'] + len(main_track['bboxes'])
+                kcf_last_frame = merging_track['start_frame'] - 1
+                # main_track + kcf_track
+                for frame in range(kcf_start_frame, kcf_last_frame + 1):
+                    if frame <= math.ceil((kcf_last_frame + kcf_start_frame) / 2):
+                        kcf_bbox = next(bbox for bbox in track if bbox['frame'] == frame)
+                    else:
+                        kcf_bbox = next(bbox for bbox in front_tracks if bbox['frame'] == frame and bbox['id'] == best_assignment['id'])
+                    main_track['bboxes'].append(kcf_bbox['bbox'])
+                # extended track + assigned iou track
+                main_track['bboxes'] += merging_track['bboxes']
+                
+                # delete rear_track of IOU1
+                jj = 0
+                while jj < len(rear_tracks):
+                    r_track = rear_tracks[jj]
+                    if r_track['id'] == main_track['id']:
+                        del rear_tracks[jj]
+                    else:
+                        jj += 1
+                # delete front_track of IOU2
+                kk = 0
+                while kk < len(front_tracks):
+                    f_track = front_tracks[kk]
+                    if f_track['id'] == best_assignment['id']:
+                        del front_tracks[kk]
+                    else:
+                        kk += 1
+                # reassign rear_track of IOU2 to IOU1 
+                for rear_track in rear_tracks:
+                    if rear_track['id'] == best_assignment['id']:
+                        rear_track['id'] = main_track['id']
+                # delete IOU2 in main_tracks
+                ll = 0
+                while ll < len(main_tracks):
+                    m_track = main_tracks[ll]
+                    if m_track['id']==best_assignment['id']:
+                        del main_tracks[ll]
+                    else:
+                        ll += 1
+            else:
+                ii += 1
+        else:
+            ii += 1
+    return main_tracks
+
+
+def merge_tm(main_tracks, front_tracks, rear_tracks, sigma_iou_merge):
     '''
     Merge tracklets of front-, main- and rear-parts using the iou paradigm
 

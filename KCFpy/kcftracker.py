@@ -2,7 +2,8 @@ import numpy as np
 import cv2
 import os
 
-import KCF.fhog
+
+import KCFpy.fhog as fhog
 
 # ffttools
 def fftd(img, backwards=False):	
@@ -219,6 +220,7 @@ class KCFTracker:
 		if(z.shape[1]!=self._tmpl_sz[0] or z.shape[0]!=self._tmpl_sz[1]):
 			self._tmpl_sz[0]=int(self._tmpl_sz[0])
 			self._tmpl_sz[1]=int(self._tmpl_sz[1])
+			print(self._tmpl_sz)
 			z = cv2.resize(z, tuple(self._tmpl_sz))
 			
 

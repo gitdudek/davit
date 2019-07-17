@@ -1,3 +1,4 @@
+#import KCF.kcftracker as kcftracker
 import KCF.kcftracker as kcftracker
 import os
 import cv2
@@ -106,7 +107,7 @@ def track_kcf_2(tracks, img_path, ttl_vtracking):
     # TBD: Kopiere zu beginn tracks in eine neue Liste und lösche jeden Track für den ein kcf gestartet wurde!
     init_frame = min(tracks, key=lambda x: x['start_frame'])['start_frame']
     final_frame = max(tracks, key=lambda x: x['start_frame'])['start_frame']
-    
+
     kcf, front_tracks, rear_tracks = [], [], []
 
     _id = 1
