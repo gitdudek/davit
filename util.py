@@ -1,8 +1,6 @@
 # ---------------------------------------------------------
-# IOU Tracker
-# Copyright (c) 2017 TU Berlin, Communication Systems Group
-# Licensed under The MIT License [see LICENSE for details]
-# Written by Erik Bochinski
+# DAVIT Tracker
+# Written by Christoph Dudek
 # ---------------------------------------------------------
 
 import numpy as np
@@ -187,6 +185,13 @@ def get_center(bbox):
 
     return (x_center,y_center)
 
+def get_delta(pt1, pt2):
+    '''
+    Calculating the delta vector between two points (x1,y1), (x2,y2)
+    '''
+    return np.array((pt2[0] - pt1[0], pt2[1] - pt1[1]))
+
+
 def get_angle(pt1, pt2):
     '''
     Calculating the angle between two 2d points (x1,y1), (x2,y2)
@@ -307,6 +312,7 @@ def template_matching(img, tmplt, tmplt_bbox, factor, meth_idx):
     
     bbox = tuple([img_bbox_left, img_bbox_top, img_bbox_w, img_bbox_h])
     return {'bbox':bbox, 'score':tm_conf}
+
 #@profile
 def track_templatematch(tracks, img_path, ttl_vtracking, window_size, tm_param):
 
@@ -388,7 +394,7 @@ def track_templatematch(tracks, img_path, ttl_vtracking, window_size, tm_param):
                 templates.append({'template':template, 'bbox':track['bboxes'][0],'id':track['id']})
 
     return tracks, front_tracks, rear_tracks
-
+#@profile
 def merge(main_tracks, front_tracks, rear_tracks, sigma_iou_merge):
     '''
     Merge tracklets of front-, main- and rear-parts using the iou paradigm
